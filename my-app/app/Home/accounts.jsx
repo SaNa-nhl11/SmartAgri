@@ -8,5 +8,6 @@ const accounts = () => {
     </View>
   )
 }
+// just test
 
 export default accounts
