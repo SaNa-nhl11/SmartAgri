@@ -31,7 +31,16 @@ const loginSchema = new mongoose.Schema({
 
   const login = moongoose.model("login", loginSchema);
 
-// to search user
+  const AddUserSchema = new mongoose.Schema({
+    UserName: String,
+    email: String,
+    Password: String,
+    Role: String
+  });
+  
+  const User = moongoose.model("User", AddUserSchema);
+
+// to search the user and allow him to login, from the explore page handlesubmit function//
 app.post("/exploreUser", async function(req, res){
     try {
         const {UserName, Password} = req.body;
@@ -53,7 +62,100 @@ app.post("/exploreUser", async function(req, res){
 });
 
 
-//getting the login data then passing it to SmartAgri database//
+// the endpoint to add a new user from ManageUsers handlesubmit function//
+app.post("/AddUser", function(req, res){
+    console.log(req.body);
+    const AddedUser = req.body;
+      const NewUser = new User({
+          UserName : AddedUser.username, 
+          email : AddedUser.email,
+          Password : AddedUser.password,
+          Role : AddedUser.role
+      })
+      NewUser.save(); //saving it to the DB of users//
+
+      const NewLogin = new login({
+        _id: NewUser._id, //sharing the id so when we delete a user he can't login once again
+        UserName : AddedUser.username, 
+        Password : AddedUser.password,
+    })
+      NewLogin.save(); //saving it to the DB of logins//
+      console.log("item saved successfully");
+    });
+
+
+    // Endpoint to get all users from ManageUsers page UseEffect
+   app.get("/GetUsers", async (req, res) => {
+    try {
+      const users = await User.find({});
+      res.json(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  // Endpoint to delete a user from ManageUsers handleDelete function
+  app.post("/deleteUser", function(req, res){
+    const { id } =req.body; 
+    console.log(id);
+    async function Delete() {
+      try {
+        const deletedUser = await User.findByIdAndDelete(id); // Delete by ID from Users dataBase
+        const deletedLogin = await login.findByIdAndDelete(id); // Delete by ID from logins dataBase
+        if (!deletedUser || !deletedLogin) {
+          return res.status(404).json({ message: 'User not found' });
+        }
+        res.status(200).json({ message: 'User deleted successfully' });
+      } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({ message: "Error deleting user", error: error.message });
+      }
+    }
+       Delete();
+    });
+
+
+ //endpoint to return User data called from ManageUsers account, handleEdit functions
+ app.get('/PersonalData/:id', async (req, res) => {
+    try {
+      const u = await User.findById(req.params.id);
+      if (!u) return res.status(404).send('Not found');
+      res.json({
+        username: u.UserName,
+        email:    u.email,
+        password: u.Password,
+        role:     u.Role
+      });
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+     
+     // Endpoint to update a user from ManageUsers handleSubmit function
+     app.put("/updateUser/:id", async (req, res) => {
+        const { id } = req.params;
+        const { username, email, password, role } = req.body;
+        try {
+          const updatedUser = await User.findByIdAndUpdate(
+            id,
+            { UserName: username, email: email, Password: password, Role: role },
+            { new: true }
+          );
+          await login.findByIdAndUpdate(
+            id,
+            { UserName: username, Password: password }
+          );
+          res.json({ message: "User updated", user: updatedUser });
+        } catch (err) {
+          console.error("Error updating user:", err);
+          res.status(500).json({ error: err.message });
+        }
+      });
+
+
+//getting the login data then passing it to SmartAgri database for debugging//
 app.post("/explore", function(req, res){
     console.log(req.body);
     const typeditem = req.body;
@@ -78,73 +180,54 @@ app.post("/explore", function(req, res){
   });
     
 
-//API connection with weather forcasts
-
-app.post("/weather",function(req,res){
-
-      //weather app api//
-      const city = "constantine";
-      const url = "https://api.openweathermap.org/data/2.5/weather?q=" + city + "&appid=941d39e27b50a5c115efd835a2377e1a&units=metric";
-      //Makes an HTTP GET request to the OpenWeatherMap API, url2 is the API endpoint URL 
-      // Takes a callback function that runs when the request is made
-      https.get(url,function(response){
-          console.log(response.statusCode);
-   
-          //to make the data from the weather app in json readable format//
-          //This is an event listener for the "data" event ,the API sends data in chunks, and this listens for each chunk
-          //Takes a callback function that processes the received data
-          response.on("data",function(data){
-              const weatherData= JSON.parse(data);
-              console.log(weatherData);
-   
-              res.json({
-                temperature: weatherData.main.temp,
-                description: weatherData.weather[0].description,
-                icon: weatherData.weather[0].icon,
-                iconUrl: "http://openweathermap.org/img/wn/" + weatherData.weather[0].icon + "@2x.png",
-                city: city,
-                humidity: weatherData.main.humidity,
-                windspeed: weatherData.wind.speed,
-                clouds: weatherData.clouds.all,
-            });
-          })
-      })
-})
-
-//Daily 5 days API//
-app.post("/weatherDaily",function(req,res){
-
-const url2 = "https://api.openweathermap.org/data/2.5/forecast?lat=40.7143&lon=-74.006&appid=941d39e27b50a5c115efd835a2377e1a&units=metric";
-let dataChunks = [];
-
-https.get(url2, function(response) {
-
-    console.log("daily weather status" + response.statusCode);
-    
-    response.on("data", function(chunk) {
-      dataChunks.push(chunk);  //Collecting all data chunks, needed this because i got an error in how data is getting received 
-    });
-    
-    response.on("end", function() {  
-
-        const completeData = Buffer.concat(dataChunks).toString();  // Combine them into a string when the response is complete
-        try {
-//[Object] and [Array] are Node.js's way of displaying nested objects in the console. To see the actual data, use JSON.stringify()       
-            const weatherData2 = JSON.parse(completeData);
-            const dailyData = JSON.stringify(weatherData2, null, 2); //just to be able to see data in console
-            // console.log("Complete weather data:", dailyData);
-
-            console.log("Complete weather data:", weatherData2.list[0].main);
-            console.log("Complete weather data:", weatherData2.list[0].weather);
-            console.log("Complete weather data:", weatherData2.list[0].clouds);
-            console.log("Complete weather data:", weatherData2.list[0].wind);
-
-        } catch (error) {
-            console.error("Error parsing JSON:", error);
-        }    
-
-    }); 
-
+// Weather API endpoint
+app.get("/weather", async function(req, res) {
+    try {
+        const location = req.query.location || "London"; // Default to London if no location provided
+        const API_KEY = "279d276787d542e78ae150612250604";
+        
+        const weatherUrl = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${encodeURIComponent(location)}&days=1&aqi=no&alerts=no`;
+        
+        const response = await fetch(weatherUrl);
+        
+        if (!response.ok) {
+            throw new Error(`Weather API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Process hourly forecast data (next 10 hours)
+        const hourlyForecast = data.forecast.forecastday[0].hour
+            .filter(hour => {
+                const hourTime = new Date(hour.time);
+                const currentTime = new Date();
+                return hourTime >= currentTime;
+            })
+            .slice(0, 10)
+            .map(item => ({
+                time: item.time,
+                temp: Math.round(item.temp_c),
+                condition: item.condition.code,
+                isDay: item.is_day
+            }));
+        
+        res.json({
+            temperature: Math.round(data.current.temp_c),
+            condition: data.current.condition.text,
+            windSpeed: Math.round(data.current.wind_kph),
+            humidity: data.current.humidity,
+            uvIndex: Math.round(data.current.uv),
+            maxUvIndex: 10,
+            conditionCode: data.current.condition.code,
+            isDay: data.current.is_day,
+            locationName: data.location.name,
+            forecast: hourlyForecast
+        });
+    } catch (error) {
+        console.error('Weather API error:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch weather data',
+            message: error.message
+        });
+    }
 });
-   
-}) 
