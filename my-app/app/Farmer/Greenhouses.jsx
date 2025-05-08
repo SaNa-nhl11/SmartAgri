@@ -176,34 +176,52 @@ const GreenHouses = () => {
   );
 
   // map card in the greenhouse view 
-  const renderPropertyCard = (greenhouse) => (
-    <View style={styles.propertyCard}>
-      <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          region={{
-            latitude: greenhouse.location.lat,
-            longitude: greenhouse.location.lng,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.2,
-          }}
-          scrollEnabled={false}
-        >
-          <Marker
-            coordinate={{
-              latitude: greenhouse.location.lat,
-              longitude: greenhouse.location.lng,
+  const renderPropertyCard = (greenhouse) => {
+    // Parse location coordinates safely
+    let latitude = 0;
+    let longitude = 0;
+    
+    try {
+      if (greenhouse.Location) {
+        const [lat, lng] = greenhouse.Location.split(',').map(coord => parseFloat(coord.trim()));
+        if (!isNaN(lat) && !isNaN(lng)) {
+          latitude = lat;
+          longitude = lng;
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing location:', error);
+    }
+
+    return (
+      <View style={styles.propertyCard}>
+        <View style={styles.mapContainer}>
+          <MapView
+            style={styles.map}
+            region={{
+              latitude: latitude,
+              longitude: longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
             }}
-            title={greenhouse.name}
-          />
-        </MapView>
-        <View style={styles.mapOverlay}>
-          <Text style={styles.mapTitle}>{greenhouse.name}</Text>
-          <Text style={styles.mapSubtitle}>{greenhouse.owner}</Text>
+            scrollEnabled={false}
+          >
+            <Marker
+              coordinate={{
+                latitude: latitude,
+                longitude: longitude,
+              }}
+              title={greenhouse.Name}
+            />
+          </MapView>
+          <View style={styles.mapOverlay}>
+            <Text style={styles.mapTitle}>{greenhouse.Name}</Text>
+            <Text style={styles.mapSubtitle}>Location: {greenhouse.Location || 'No location set'}</Text>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   // the image selection when adding or editing
   const handleImageSelect = async () => {
@@ -591,44 +609,6 @@ const GreenHouses = () => {
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
           <Text style={styles.greenhouseName}>{greenhouse.Name}</Text>
-          <View style={styles.cardActions}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => {
-                setIsEditMode(true);
-                setSelectedGreenhouse(greenhouse);
-                setFormData({
-                  name: greenhouse.Name,
-                  location: greenhouse.Location,
-                  image: greenhouse.Image
-                });
-                setIsModalVisible(true);
-              }}
-            >
-              <Icon name="pencil" size={20} color="#0d986a" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.removeButton]}
-              onPress={() => {
-                Alert.alert(
-                  'Remove Greenhouse',
-                  'Are you sure you want to remove this greenhouse?',
-                  [
-                    {
-                      text: 'Cancel',
-                      style: 'cancel',
-                    },
-                    {
-                      text: 'Remove',
-                      onPress: () => handleDeleteGreenhouse(greenhouse._id),
-                    },
-                  ],
-                );
-              }}
-            >
-              <Icon name="delete" size={20} color="#FF4444" />
-            </TouchableOpacity>
-          </View>
         </View>
         <View style={styles.sensorGrid}>
           <View style={styles.sensorItem}>
@@ -704,46 +684,12 @@ const GreenHouses = () => {
             </View>
 
             <Text style={styles.sectionTitle}>Property</Text>
-            <View style={styles.propertyCard}>
-              <View style={styles.mapContainer}>
-                <MapView
-                  style={styles.map}
-                  region={{
-                    latitude: parseFloat(selectedGreenhouse.Location.split(',')[0]),
-                    longitude: parseFloat(selectedGreenhouse.Location.split(',')[1]),
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
-                  scrollEnabled={false}
-                >
-                  <Marker
-                    coordinate={{
-                      latitude: parseFloat(selectedGreenhouse.Location.split(',')[0]),
-                      longitude: parseFloat(selectedGreenhouse.Location.split(',')[1]),
-                    }}
-                    title={selectedGreenhouse.Name}
-                  />
-                </MapView>
-                <View style={styles.mapOverlay}>
-                  <Text style={styles.mapTitle}>{selectedGreenhouse.Name}</Text>
-                  <Text style={styles.mapSubtitle}>Location: {selectedGreenhouse.Location}</Text>
-                </View>
-              </View>
-            </View>
+            {renderPropertyCard(selectedGreenhouse)}
           </View>
         ) : (
           greenhouses.map(renderGreenhouseCard)
         )}
       </ScrollView>
-
-      {!selectedGreenhouse && (
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => setIsModalVisible(true)}
-        >
-          <Icon name="plus" size={24} color="white" />
-        </TouchableOpacity>
-      )}
 
       {renderModal()}
       {renderMapModal()}
@@ -835,23 +781,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-  },
-  cardActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f1f9f5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#FF4444',
   },
   sensorGrid: {
     flexDirection: 'row',

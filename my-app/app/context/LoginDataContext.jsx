@@ -21,3 +21,5 @@ setLoginData: A function to update the login state
     </LoginDataContext.Provider>
   );
 };
+
+export default LoginDataProvider;

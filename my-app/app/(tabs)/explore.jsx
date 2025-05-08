@@ -62,22 +62,36 @@ const ExploreContent = () => {
 
         // Check if the account exists
         if (result.exists) {
-            // Account exists, update loginData with the user's name
+            // Account exists, update loginData with the user's name and role
             setLoginData(prevData => ({
                 ...prevData,
-                name: loginData.UserName // Using the username as the display name
+                name: result.name || loginData.UserName,
+                role: result.role,
+                isManager: result.isManager
             }));
-            // Navigate to the next page
-            router.push('/Home/');
+
+            // Add a small delay to ensure state is updated
+            setTimeout(() => {
+                // Navigate to the appropriate page based on role
+                if (result.role === 'farmer') {
+                    router.replace('/Farmer');
+                } else if (result.role === 'technician') {
+                    router.replace('/Technician');
+                } else if (result.isManager) {
+                    router.replace('/Home');
+                } else {
+                    Alert.alert('Error', 'Invalid role assigned');
+                }
+            }, 100);
         } else {
             // Account doesn't exist, stay on login page
-            alert('Invalid username or password');
+            Alert.alert('Error', result.message || 'Invalid username or password');
             ResetHook();
         }
         
     } catch (error) {
         console.error('Connection error:', error);
-        alert('Error connecting to server');
+        Alert.alert('Error', 'Failed to connect to server');
     }
 };
 

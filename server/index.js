@@ -11,10 +11,10 @@ const multer = require('multer'); // to handle image uploads
 //const sharp = require('sharp'); //to resize and optimize images
 const path = require('path'); //to handle file paths
 const fs = require('fs'); //to handle file operations
-const SerialPort = require('serialport'); //to handle serial communication with arduino
-const Readline = require('@serialport/parser-readline'); //to parse the data from the serial port
+// const SerialPort = require('serialport'); //to handle serial communication with arduino
+// const Readline = require('@serialport/parser-readline'); //to parse the data from the serial port
 
-const port = 3000;
+// const port = 3000;
 const app = express();
 app.use(bodyParser.json()); //so we are able to read data from the react app.js, Handles JSON data Used for API requests
 app.use(bodyParser.urlencoded({extended:true})); //Handles form data :
@@ -98,14 +98,39 @@ app.post("/exploreUser", async function(req, res){
         const {UserName, Password} = req.body;
         console.log('Searching for user:', UserName);
         
+        // First check in the login collection
         const existingUser = await login.findOne({UserName: UserName, Password: Password});
         
         if (existingUser) {
-            console.log('User found');
-            res.json({ exists: true });
+            // If found in login collection, get the full user details from User collection
+            const userDetails = await User.findOne({UserName: UserName});
+            console.log('User found:', userDetails);
+            
+            if (userDetails) {
+                // Normalize the role to handle both spellings
+                const role = userDetails.Role.toLowerCase();
+                const normalizedRole = role === 'technicien' ? 'technician' : role;
+                
+                res.json({ 
+                    exists: true,
+                    name: userDetails.UserName,
+                    role: normalizedRole,
+                    isManager: normalizedRole === 'manager'
+                });
+            } else {
+                res.json({ 
+                    exists: true,
+                    name: UserName,
+                    role: 'farmer', // Default role if not found in User collection
+                    isManager: false
+                });
+            }
         } else {
             console.log('User not found');
-            res.json({ exists: false });
+            res.json({ 
+                exists: false,
+                message: 'Invalid username or password'
+            });
         }
     } catch (error) {
         console.error('Error searching for user:', error);
@@ -366,11 +391,34 @@ app.put("/updateGreenhouse/:id", async (req, res) => {
 app.post("/DeleteGreenhouse", async (req, res) => {
   try {
     const { id } = req.body;
+    
+    // First, find all plants associated with this greenhouse
+    const plants = await Plant.find({ Greenhouse: id });
+    
+    // Delete all associated plants
+    for (const plant of plants) {
+      // Delete plant image if it exists
+      if (plant.Image) {
+        const fullPath = path.join(__dirname, plant.Image);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+          console.log('Deleted plant image:', fullPath);
+        }
+      }
+      // Delete plant from database
+      await Plant.findByIdAndDelete(plant._id);
+    }
+    
+    // Delete the greenhouse
     const deletedGreenhouse = await Greenhouse.findByIdAndDelete(id);
     if (!deletedGreenhouse) {
       return res.status(404).json({ message: 'Greenhouse not found' });
     }
-    res.json({ message: 'Greenhouse deleted successfully' });
+    
+    res.json({ 
+      message: 'Greenhouse and associated plants deleted successfully',
+      deletedPlantsCount: plants.length
+    });
   } catch (error) {
     console.error('Error deleting greenhouse:', error);
     res.status(500).json({ error: 'Server error' });
@@ -533,28 +581,28 @@ app.post("/verifyManagerPin", async (req, res) => {
   }
 });
 
-// Initialize serial port connection
-const arduinoPort = new SerialPort({
-  path: 'COM3', // ← Change to your actual port
-  baudRate: 9600
-});
+// // Initialize serial port connection
+// const arduinoPort = new SerialPort({
+//   path: 'COM3', // ← Change to your actual port
+//   baudRate: 9600
+// });
 
-const parser = arduinoPort.pipe(new Readline({ delimiter: '\n' }));
+// const parser = arduinoPort.pipe(new Readline({ delimiter: '\n' }));
 
-let sensorData = {
-  humidity: null,
-  temperature: null
-};
+// let sensorData = {
+//   humidity: null,
+//   temperature: null
+// };
 
-parser.on('data', line => {
-  const match = line.match(/Humidity:(\d+\.?\d*),Temperature:(\d+\.?\d*)/);
-  if (match) {
-    sensorData.humidity = parseFloat(match[1]);
-    sensorData.temperature = parseFloat(match[2]);
-  }
-});
+// parser.on('data', line => {
+//   const match = line.match(/Humidity:(\d+\.?\d*),Temperature:(\d+\.?\d*)/);
+//   if (match) {
+//     sensorData.humidity = parseFloat(match[1]);
+//     sensorData.temperature = parseFloat(match[2]);
+//   }
+// });
 
-// API route
-app.get('/api/sensor', (req, res) => {
-  res.json(sensorData);
-});
+// // API route
+// app.get('/api/sensor', (req, res) => {
+//   res.json(sensorData);
+// });
