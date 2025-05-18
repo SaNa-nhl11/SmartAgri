@@ -1,20 +1,22 @@
-import { View, Text, Image, StyleSheet, Pressable, TextInput, ImageBackground, Dimensions, SafeAreaView } from 'react-native'
+import { View, Text, Image, StyleSheet, Pressable, TextInput, ImageBackground, Dimensions, SafeAreaView, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import React, {useState, useEffect} from 'react'
 import {Link, router} from 'expo-router'
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { getBaseUrl } from '../../config';
+import { useLoginData } from '../context/LoginDataContext';
+import { useUser } from '../context/UserContext';
 const { width, height } = Dimensions.get('window');
 
+const ExploreContent = () => {
 
-const app = () => {
-
-  // State hooks to store form input data
-  const [Username, setUsername] = useState('');
-  const [password, setpassword] = useState('');
-
-  const [loginData, setLoginData] = useState({
+  /* const [loginData, setLoginData] = useState({
     UserName: "",
     Password: "",
-  });
+  }); 
+  */
+
+  const { loginData, setLoginData } = useLoginData();
+  const { setUserRole } = useUser();
 
   function ResetHook(){
     setLoginData({
@@ -46,8 +48,8 @@ const app = () => {
     try {
         console.log('Sending request with data:', JSON.stringify(loginData));
       
-       
-        const response = await fetch('http://192.168.1.8:8080/exploreUser', {  //in cmd: ipconfig /all if you get a connection error//
+        const baseUrl = getBaseUrl();
+        const response = await fetch(`${baseUrl}/exploreUser`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -62,8 +64,22 @@ const app = () => {
 
         // Check if the account exists
         if (result.exists) {
-            // Account exists, navigate to the next page
-            router.push('/Home/');
+            // Set user role based on the response
+            setUserRole(result.role); 
+            console.log("Role is " + result.role);
+            
+            // Account exists, update loginData with the user's name
+            setLoginData(prevData => ({
+                ...prevData,
+                name: loginData.UserName // Using the username as the display name
+            }));
+
+            // Redirect based on role
+            if (result.role === 'technicien') {
+                router.push('/Technicien/');
+            } else {
+                router.push('/Home/');
+            }
         } else {
             // Account doesn't exist, stay on login page
             alert('Invalid username or password');
@@ -119,20 +135,21 @@ const app = () => {
               />
             </Pressable>
         </SafeAreaView>
-        
+      
+
       <Pressable style={styles.SignUpButton}  onPress={handleSubmit}>
       <Text style={styles.ButtonText}>Log in</Text>
       </Pressable>
 
-      <Text style={styles.LoginText}>Are you a Manager?  <Link href="/" style={styles.LoginText2}>Start Here</Link> </Text>
+      <Text style={styles.LoginText}>Are you a Manager?  <Link href="/ManagerPin" style={styles.LoginText2}>Start Here</Link> </Text>
 
      </View> 
       
     </View>
-  )
-}
+  );
+};
 
-export default app
+export default ExploreContent;
 
 const styles = StyleSheet.create({
   container : {
